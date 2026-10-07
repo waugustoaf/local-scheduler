@@ -1463,19 +1463,30 @@ function ProfileModal({
                   onChange={(e) => patch({ tls: e.target.value })}
                 >
                   <option value="verify">Validar certificado e hostname</option>
+                  <option value="verify_ca">
+                    Validar CA, sem verificar hostname
+                  </option>
                   <option value="disable">Sem TLS</option>
                 </select>
               </Field>
-              <Field
-                label="Nome no certificado TLS (opcional)"
-                help="Se o host for um alias, informe o nome DNS esperado no certificado do banco. Em branco, usa o host."
-              >
-                <input
-                  value={v.tlsServerName ?? ""}
-                  onChange={(e) => patch({ tlsServerName: e.target.value })}
-                  placeholder="database.region.rds.amazonaws.com"
-                />
-              </Field>
+              {v.tls === "verify_ca" && (
+                <p className="note">
+                  A conexão usa TLS e valida a cadeia do certificado, mas não
+                  verifica se o certificado pertence ao host informado.
+                </p>
+              )}
+              {(v.tls ?? "verify") === "verify" && (
+                <Field
+                  label="Nome no certificado TLS (opcional)"
+                  help="Se o host for um alias, informe o nome DNS esperado no certificado do banco. Em branco, usa o host."
+                >
+                  <input
+                    value={v.tlsServerName ?? ""}
+                    onChange={(e) => patch({ tlsServerName: e.target.value })}
+                    placeholder="database.region.rds.amazonaws.com"
+                  />
+                </Field>
+              )}
               <Field
                 label="Certificado do banco"
                 help="Amazon RDS baixa a CA oficial automaticamente ao salvar e a mantém no cache do aplicativo."
@@ -1486,7 +1497,10 @@ function ProfileModal({
                     patch({
                       caMode: e.target.value,
                       caPath: "",
-                      tls: e.target.value === "aws_rds" ? "verify" : v.tls,
+                      tls:
+                        e.target.value === "aws_rds" && v.tls === "disable"
+                          ? "verify"
+                          : v.tls,
                     })
                   }
                 >
@@ -1500,8 +1514,7 @@ function ProfileModal({
                 <p className="note">
                   A CA será baixada diretamente da AWS ao salvar. Nas próximas
                   conexões o aplicativo usa o arquivo salvo e tenta atualizar
-                  após 30 dias. Mantenha a validação TLS ativada e use o nome
-                  esperado no certificado quando o host for um alias.
+                  após 30 dias.
                 </p>
               ) : (
                 <FileField

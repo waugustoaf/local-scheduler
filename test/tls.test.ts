@@ -6,6 +6,30 @@ import { join } from "node:path";
 import { rootCertificates } from "node:tls";
 import { databaseTLS, connectionError } from "../src/services/databaseTLS.ts";
 import { validateProfile } from "../src/services/profiles.ts";
+test("verify CA accepts the network alias without disabling certificate chain verification", async () => {
+  const value = {
+    driver: "postgres",
+    host: "rds-services.vammo.com",
+    database: "services",
+    username: "user",
+    tls: "verify_ca",
+  };
+  const saved = validateProfile({ name: "Database", kind: "database", value });
+  const config = await databaseTLS(saved.value);
+  if (config === false) throw new Error("TLS disabled");
+  assert.equal(saved.value.host, "rds-services.vammo.com");
+  assert.equal(config.rejectUnauthorized, true);
+  assert.equal(
+    config.checkServerIdentity!(value.host, {
+      subjectaltname: "DNS:services-vammo-prod.cluster.example.com",
+    } as any),
+    undefined,
+  );
+  await assert.rejects(
+    () => databaseTLS({ ...value, caPath: "/nonexistent/cert.pem" }),
+    /certificado CA/,
+  );
+});
 test("TLS keeps certificate verification and the real database hostname when a CA is supplied", async () => {
   const dir = mkdtempSync(join(tmpdir(), "scheduler_tls_"));
   try {

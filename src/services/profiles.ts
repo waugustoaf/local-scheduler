@@ -30,7 +30,11 @@ export function validateProfile(input: unknown): Profile {
     if (value.tlsServerName)
       text(value.tlsServerName, "Nome no certificado TLS", 255);
     integer(value.port ?? 5432, "Porta", 1, 65535);
-    if (!["verify", "disable"].includes(String(value.tls ?? "verify")))
+    if (
+      !["verify", "verify_ca", "disable"].includes(
+        String(value.tls ?? "verify"),
+      )
+    )
       throw new Error("Configuração TLS inválida.");
     if (value.caMode && !["manual", "aws_rds"].includes(String(value.caMode)))
       throw new Error("Origem do certificado inválida.");

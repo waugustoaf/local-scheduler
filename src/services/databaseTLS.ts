@@ -31,8 +31,11 @@ export async function databaseTLS(
   return {
     rejectUnauthorized: true,
     servername: identity,
-    checkServerIdentity: (_hostname, certificate) =>
-      checkServerIdentity(identity, certificate),
+    checkServerIdentity:
+      value.tls === "verify_ca"
+        ? () => undefined
+        : (_hostname, certificate) =>
+            checkServerIdentity(identity, certificate),
     ca,
   };
 }
