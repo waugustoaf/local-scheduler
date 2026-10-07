@@ -1,4 +1,7 @@
-import { safeStorage, Notification } from "electron";
+import { safeStorage, Notification, app } from "electron";
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { collectRunAlerts } from "../core/alerts.ts";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
@@ -21,25 +24,88 @@ export async function startAgent(dir: string, dist: string) {
   const registry = modules(),
     power = new MacPower(dist),
     engine = new Engine(store, new ProcessRunner(store, dist), power);
-  let notifyRevision = "";
-  const timer = setInterval(
-    () =>
-      void engine
-        .tick()
-        .then(() => {
-          const latest = store.listRuns()[0];
-          if (latest?.endedAt && latest.id !== notifyRevision) {
-            notifyRevision = latest.id;
-            if (Notification.isSupported())
-              new Notification({
-                title: latest.taskName,
-                body: latest.summary,
-              }).show();
-          }
-        })
-        .catch(() => {}),
-    1000,
-  );
+  const startedAt = new Date().toISOString();
+  let ticking = false;
+  const openDashboard = () => {
+    execFile(
+      process.execPath,
+      app.isPackaged ? [] : [app.getAppPath()],
+      () => {},
+    );
+  };
+  const notify = (title: string, body: string) => {
+    if (!Notification.isSupported()) return false;
+    try {
+      const notification = new Notification({
+        title,
+        body: body.slice(0, 400),
+      });
+      notification.on("click", openDashboard);
+      notification.on("failed", () =>
+        store.addAlert({
+          id: "notifications:unavailable",
+          kind: "notification",
+          title: "Notificações indisponíveis",
+          message:
+            "Confira a permissão de notificações do Local Scheduler em Ajustes do Sistema.",
+          runId: null,
+        }),
+      );
+      notification.show();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const check = async () => {
+    if (ticking) return;
+    ticking = true;
+    try {
+      await engine.tick();
+      store.resolveAlerts("agent");
+      collectRunAlerts(store);
+      if (
+        engine.wakeError &&
+        store.listTasks().some((t) => t.enabled && t.wake && t.nextAt)
+      )
+        store.addAlert({
+          id:
+            "wake:" +
+            createHash("sha256").update(engine.wakeError).digest("hex"),
+          kind: "wake",
+          title: "Despertar indisponível",
+          message:
+            "Não foi possível preparar o despertar. Confira o serviço em Configurações. As ações dependem de o Mac estar acordado.",
+          runId: null,
+        });
+      else store.resolveAlerts("wake");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      store.addAlert({
+        id: "agent:" + createHash("sha256").update(message).digest("hex"),
+        kind: "agent",
+        title: "Falha no executor",
+        message,
+        runId: null,
+      });
+    } finally {
+      const pending = store.pendingNotifications();
+      if (
+        pending.length &&
+        notify(
+          pending.length === 1
+            ? pending[0].title
+            : `${pending.length} avisos precisam de atenção`,
+          pending.length === 1
+            ? pending[0].message
+            : "Abra o Local Scheduler para verificar os resultados.",
+        )
+      )
+        for (const alert of pending) store.markNotified(alert.id);
+      ticking = false;
+    }
+  };
+  const timer = setInterval(() => void check(), 1000);
   const context = (config: unknown): ModuleContext => {
     const profiles = scopedProfiles(config, store.listProfiles()),
       secrets: Record<string, string> = {};
@@ -71,6 +137,8 @@ export async function startAgent(dir: string, dist: string) {
           modules: registry.list(),
           agent: true,
           wakeError: engine.wakeError,
+          alerts: store.listAlerts(),
+          startedAt,
         };
       case "saveTask": {
         const input = object(args) as unknown as TaskInput;
@@ -189,13 +257,23 @@ export async function startAgent(dir: string, dist: string) {
       case "deleteMemory":
         store.deleteMemory(text(args.id, "ID", 100));
         return true;
+      case "ackAlert":
+        store.ackAlert(text(args.id, "ID", 150));
+        return true;
+      case "testNotification":
+        return {
+          supported: notify(
+            "Local Scheduler",
+            "Notificações do executor estão disponíveis. Você pode fechar o dashboard.",
+          ),
+        };
       case "powerStatus":
         return { installed: await power.status(), error: engine.wakeError };
       default:
         throw new Error("Operação não disponível.");
     }
   });
-  void engine.tick().catch(() => {});
+  void check();
   return async () => {
     clearInterval(timer);
     server.close();

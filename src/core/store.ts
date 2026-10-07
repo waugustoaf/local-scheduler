@@ -4,6 +4,7 @@ import { mkdirSync, chmodSync } from "node:fs";
 import { dirname } from "node:path";
 import { nextOccurrence, validateSchedule } from "./schedule.ts";
 import { integer, object, text } from "./validation.ts";
+import type { Alert } from "./alerts.ts";
 import type {
   Task,
   TaskInput,
@@ -27,10 +28,58 @@ export class Store {
       CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, namespace TEXT NOT NULL, name TEXT NOT NULL, version INTEGER NOT NULL, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS secrets (id TEXT PRIMARY KEY, encrypted TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS alerts (id TEXT PRIMARY KEY,kind TEXT NOT NULL,title TEXT NOT NULL,message TEXT NOT NULL,run_id TEXT,created_at TEXT NOT NULL,read_at TEXT,notified_at TEXT);`);
   }
   close() {
     this.db.close();
+  }
+  addAlert(input: Pick<Alert, "id" | "kind" | "title" | "message" | "runId">) {
+    this.db
+      .prepare(
+        "INSERT OR IGNORE INTO alerts(id,kind,title,message,run_id,created_at) VALUES(?,?,?,?,?,?)",
+      )
+      .run(
+        input.id,
+        input.kind,
+        input.title.slice(0, 160),
+        input.message.slice(0, 4000),
+        input.runId,
+        new Date().toISOString(),
+      );
+  }
+  listAlerts(): Alert[] {
+    return this.db
+      .prepare("SELECT * FROM alerts ORDER BY created_at DESC LIMIT 250")
+      .all()
+      .map((r: any) => ({
+        id: r.id,
+        kind: r.kind,
+        title: r.title,
+        message: r.message,
+        runId: r.run_id,
+        createdAt: r.created_at,
+        readAt: r.read_at,
+        notifiedAt: r.notified_at,
+      }));
+  }
+  pendingNotifications(): Alert[] {
+    return this.listAlerts().filter((a) => !a.notifiedAt && !a.readAt);
+  }
+  markNotified(id: string) {
+    this.db
+      .prepare("UPDATE alerts SET notified_at=? WHERE id=?")
+      .run(new Date().toISOString(), id);
+  }
+  ackAlert(id: string) {
+    this.db
+      .prepare("UPDATE alerts SET read_at=? WHERE id=?")
+      .run(new Date().toISOString(), id);
+  }
+  resolveAlerts(kind: string) {
+    this.db
+      .prepare("UPDATE alerts SET read_at=? WHERE kind=? AND read_at IS NULL")
+      .run(new Date().toISOString(), kind);
   }
   private task(row: any): Task {
     return {

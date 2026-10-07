@@ -31,7 +31,11 @@ else {
         cleanup = await startAgent(dir, dist);
         return;
       }
-      await installAgent(dir);
+      try {
+        await installAgent(dir);
+      } catch {
+        /* Dashboard remains available to repair the executor. */
+      }
       window = new BrowserWindow({
         width: 1260,
         height: 850,
@@ -59,6 +63,10 @@ else {
         valid(event);
         if (typeof method !== "string") throw new Error("Operação inválida.");
         if (method === "installWake") return installWake(dist);
+        if (method === "repairAgent") {
+          await installAgent(dir);
+          return true;
+        }
         return request(dir, method, args);
       });
       ipcMain.handle("scheduler:file", async (event, kind) => {

@@ -11,7 +11,7 @@ const source = join(electronRoot, "dist/Electron.app"),
   target = "release/Local Scheduler.app";
 await mkdir("release", { recursive: true });
 await rm(target, { recursive: true, force: true });
-await cp(source, target, { recursive: true, dereference: true });
+await cp(source, target, { recursive: true, dereference: false, verbatimSymlinks: true });
 const resources = join(target, "Contents/Resources");
 await rm(join(resources, "default_app.asar"), { force: true });
 const appRoot = join(resources, "app");

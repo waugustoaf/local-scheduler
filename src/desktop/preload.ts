@@ -14,9 +14,12 @@ const allowed = new Set([
   "logs",
   "powerStatus",
   "installWake",
+  "ackAlert",
+  "testNotification",
+  "repairAgent",
 ]);
 contextBridge.exposeInMainWorld(
-  "scheduler",
+  "localScheduler",
   Object.freeze({
     call: (method: string, args: unknown = {}) => {
       if (!allowed.has(method))

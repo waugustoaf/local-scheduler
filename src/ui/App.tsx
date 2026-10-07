@@ -178,12 +178,18 @@ export function App() {
     [logs, setLogs] = useState<any[]>([]),
     [busy, setBusy] = useState(false),
     [power, setPower] = useState(false),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [agentOnline, setAgentOnline] = useState(false),
+    [agentError, setAgentError] = useState("");
   const refresh = async () => {
     try {
-      setData(await call("snapshot"));
+      const snapshot = await call("snapshot");
+      setData(snapshot);
+      setAgentOnline(!!snapshot.agent);
+      setAgentError("");
     } catch (e) {
-      setError((e as Error).message);
+      setAgentOnline(false);
+      setAgentError((e as Error).message);
     }
   };
   useEffect(() => {
@@ -279,10 +285,10 @@ export function App() {
           ))}
         </nav>
         <div className="sidebarFoot">
-          <span className={`dot ${data?.agent ? "green" : ""}`} />
+          <span className={`dot ${agentOnline ? "green" : ""}`} />
           {preview
             ? "Prévia da interface"
-            : data?.agent
+            : agentOnline
               ? "Agente disponível"
               : "Conectando ao agente"}
           <small>Local · America/Sao_Paulo</small>
@@ -329,6 +335,79 @@ export function App() {
               <Icon name="close" />
             </button>
           </div>
+        )}
+        {!preview && (
+          <section
+            className={`executorStatus ${agentOnline ? "online" : "offline"}`}
+            role="status"
+          >
+            <div>
+              <strong>
+                {agentOnline
+                  ? "Executor em segundo plano ativo"
+                  : "Executor indisponível"}
+              </strong>
+              <p>
+                {agentOnline
+                  ? "Inicia com sua sessão no Mac e continua funcionando ao fechar o dashboard."
+                  : "Os agendamentos não podem ser confirmados até a conexão voltar."}
+              </p>
+              {agentError && <small>{agentError}</small>}
+            </div>
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => void act("repairAgent", {}, "Executor verificado")}
+            >
+              Verificar executor
+            </button>
+          </section>
+        )}
+        {!!data?.alerts?.filter((a) => !a.readAt).length && (
+          <section className="alertsPanel" aria-label="Avisos pendentes">
+            <h2>
+              Atenção necessária{" "}
+              <span>{data.alerts.filter((a) => !a.readAt).length}</span>
+            </h2>
+            {data.alerts
+              .filter((a) => !a.readAt)
+              .slice(0, 10)
+              .map((a) => (
+                <article key={a.id}>
+                  <div>
+                    <h3>{a.title}</h3>
+                    <p>{a.message}</p>
+                    <small>{date(a.createdAt)}</small>
+                  </div>
+                  <div className="inline">
+                    {a.runId && (
+                      <button
+                        className="textButton"
+                        onClick={() => {
+                          const r = data.runs.find((r) => r.id === a.runId);
+                          if (r) void openRun(r);
+                          else setPage("history");
+                        }}
+                      >
+                        Ver resultado
+                      </button>
+                    )}
+                    <button
+                      className="secondary"
+                      onClick={() =>
+                        void act(
+                          "ackAlert",
+                          { id: a.id },
+                          "Aviso marcado como visto",
+                        )
+                      }
+                    >
+                      Marcar como visto
+                    </button>
+                  </div>
+                </article>
+              ))}
+          </section>
         )}
         {!data ? (
           <div className="empty">
@@ -731,6 +810,36 @@ export function App() {
             )}
             {page === "settings" && (
               <>
+                <section className="settingsCard">
+                  <h2>Notificações do executor</h2>
+                  <p>
+                    Falhas, interrupções e ações fora da janela geram avisos,
+                    mesmo com o dashboard fechado. Os avisos ficam pendentes até
+                    serem marcados como vistos.
+                  </p>
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={async () => {
+                      const result = await act(
+                        "testNotification",
+                        {},
+                        "Teste enviado",
+                      );
+                      if (result && !result.supported)
+                        setError(
+                          "O macOS não disponibilizou notificações para este aplicativo.",
+                        );
+                    }}
+                  >
+                    Testar notificação
+                  </button>
+                  <p className="note">
+                    Permita notificações para Local Scheduler em Ajustes do
+                    Sistema. O modo Foco pode ocultar banners; os avisos
+                    continuam visíveis no aplicativo.
+                  </p>
+                </section>
                 <section className="settingsCard">
                   <div className="sectionBar">
                     <div>

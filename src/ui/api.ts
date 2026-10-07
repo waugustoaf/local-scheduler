@@ -1,4 +1,5 @@
 import type { Task, Run, Profile, Memory } from "../core/types.ts";
+import type { Alert } from "../core/alerts.ts";
 export interface Snapshot {
   tasks: Task[];
   runs: Run[];
@@ -7,10 +8,12 @@ export interface Snapshot {
   modules: { id: string; label: string; version: number }[];
   agent: boolean;
   wakeError: string | null;
+  alerts: Alert[];
+  startedAt?: string;
 }
 declare global {
   interface Window {
-    scheduler?: {
+    localScheduler?: {
       call(method: string, args?: unknown): Promise<any>;
       chooseFile(kind: string): Promise<string | null>;
     };
@@ -27,13 +30,27 @@ const empty: Snapshot = {
   ],
   agent: false,
   wakeError: null,
+  alerts: [],
 };
 let demo: Snapshot = JSON.parse(
   localStorage.getItem("scheduler_preview") ?? JSON.stringify(empty),
 );
-export const preview = !window.scheduler;
+function bridge() {
+  const value = window.localScheduler;
+  return value &&
+    typeof value.call === "function" &&
+    typeof value.chooseFile === "function"
+    ? value
+    : null;
+}
+export const preview = !bridge() && !navigator.userAgent.includes("Electron/");
 export async function call(method: string, args: any = {}): Promise<any> {
-  if (window.scheduler) return window.scheduler.call(method, args);
+  const api = bridge();
+  if (api) return api.call(method, args);
+  if (!preview)
+    throw new Error(
+      "A ponte do Electron não carregou. Recompile e reabra o aplicativo.",
+    );
   let result: any = true;
   const save = (key: "tasks" | "profiles" | "memories", value: any) => {
     const item = { ...value, id: value.id ?? crypto.randomUUID() };
@@ -87,7 +104,8 @@ export async function call(method: string, args: any = {}): Promise<any> {
   return result;
 }
 export async function chooseFile(kind: string) {
-  if (!window.scheduler)
+  const api = bridge();
+  if (!api)
     throw new Error("A seleção de arquivos está disponível no aplicativo.");
-  return window.scheduler.chooseFile(kind);
+  return api.chooseFile(kind);
 }

@@ -64,7 +64,7 @@ npm run preview
 
 A prévia de navegador é exclusivamente visual e usa dados locais separados; nunca executa scripts, SQL ou altera o Mac.
 
-Nesta entrega os testes do motor e dos scripts e a compilação do componente Swift podem ser executados com dependências locais já disponíveis. A rede do ambiente de desenvolvimento bloqueia o download do Electron. A checagem completa de tipos depende das declarações do Electron e PostgreSQL ainda não disponíveis. A abertura do aplicativo, a inspeção visual, o Keychain, o launchd e o despertar físico precisam ser verificados no aplicativo instalado. Nenhuma credencial, agendamento ou configuração de produção foi importada.
+A correção da ponte e dos avisos foi verificada com 19 testes, checagem completa de tipos, build e geração do pacote com assinatura local. A abertura do aplicativo, as permissões de notificações, o Keychain, o início real pelo launchd e o despertar físico precisam ser verificados no aplicativo instalado. Nenhuma credencial, agendamento ou configuração de produção foi importada.
 
 ## Remoção
 
@@ -83,3 +83,13 @@ sudo rm /Library/LaunchDaemons/com.localscheduler.wake.plist /Library/Privileged
 ```
 
 Os dados locais permanecem para preservar o histórico. Remova a pasta de dados manualmente se não precisar mais deles. Um evento de despertar já registrado pode permanecer no macOS até seu horário; pause os agendamentos com o serviço ainda instalado antes da remoção para cancelar os eventos do aplicativo.
+
+## Executor e avisos
+
+Abra o aplicativo uma vez depois de movê lo para `/Applications`. O executor é registrado no launchd com `RunAtLoad` e `KeepAlive`: inicia após o login da sessão e é reiniciado se encerrar inesperadamente. Fechar o dashboard ou usar Sair encerra apenas a interface. Não precisa abrir o dashboard nos próximos logins. O macOS deve permitir sua atividade em segundo plano. Atualizações do código recarregam o agente na próxima abertura do dashboard, quando não houver ações em execução.
+
+O estado do executor aparece no dashboard. Se perder a conexão, ele deixa de aparecer como ativo; use Verificar executor para tentar restabelecer o serviço. Falhas, resultados incertos, cancelamentos e ocorrências vencidas geram avisos persistentes na tela principal e notificações nativas, mesmo com o dashboard fechado. Os avisos permanecem até serem marcados como vistos. A indisponibilidade do serviço de despertar também aparece como aviso.
+
+Em Configurações, use Testar notificação. Permita notificações para Local Scheduler em Ajustes do Sistema; o modo Foco pode ocultar banners. Clique em uma notificação para abrir o dashboard. O executor depende da sessão iniciada, inclusive depois de um reinício com FileVault.
+
+A ponte Electron usa `window.localScheduler`, sem colidir com a API `window.scheduler` do Chromium.
