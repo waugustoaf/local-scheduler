@@ -30,6 +30,8 @@ export function validateProfile(input: unknown): Profile {
     integer(value.port ?? 5432, "Porta", 1, 65535);
     if (!["verify", "disable"].includes(String(value.tls ?? "verify")))
       throw new Error("Configuração TLS inválida.");
+    if (value.caMode && !["manual", "aws_rds"].includes(String(value.caMode)))
+      throw new Error("Origem do certificado inválida.");
   } else throw new Error("Tipo de conexão inválido.");
   const allowed =
     p.kind === "ssh"
@@ -51,6 +53,7 @@ export function validateProfile(input: unknown): Profile {
           "username",
           "tls",
           "caPath",
+          "caMode",
           "sshProfileId",
           "passwordRef",
         ];

@@ -1466,18 +1466,42 @@ function ProfileModal({
                   <option value="disable">Sem TLS</option>
                 </select>
               </Field>
-              <FileField
-                label="Certificado CA do banco (quando exigido)"
-                kind="ca"
-                value={v.caPath ?? ""}
-                onChange={(s) => patch({ caPath: s })}
-                error={error}
-              />
-              <p className="note">
-                Para Amazon RDS, selecione o global-bundle.pem oficial da AWS.
-                Esse certificado é diferente da chave privada .pem do SSH. Use o
-                hostname real do banco no campo Host, mesmo com túnel SSH.
-              </p>
+              <Field
+                label="Certificado do banco"
+                help="Amazon RDS baixa a CA oficial automaticamente ao salvar e a mantém no cache do aplicativo."
+              >
+                <select
+                  value={v.caMode ?? "manual"}
+                  onChange={(e) =>
+                    patch({
+                      caMode: e.target.value,
+                      caPath: "",
+                      tls: e.target.value === "aws_rds" ? "verify" : v.tls,
+                    })
+                  }
+                >
+                  <option value="manual">
+                    Padrão do sistema ou arquivo CA
+                  </option>
+                  <option value="aws_rds">Amazon RDS (automático)</option>
+                </select>
+              </Field>
+              {v.caMode === "aws_rds" ? (
+                <p className="note">
+                  A CA será baixada diretamente da AWS ao salvar. Nas próximas
+                  conexões o aplicativo usa o arquivo salvo e tenta atualizar
+                  após 30 dias. Mantenha a validação TLS ativada e use o
+                  hostname real do banco.
+                </p>
+              ) : (
+                <FileField
+                  label="Certificado CA do banco (quando exigido)"
+                  kind="ca"
+                  value={v.caPath ?? ""}
+                  onChange={(s) => patch({ caPath: s })}
+                  error={error}
+                />
+              )}
             </>
           )}
         </div>

@@ -93,3 +93,9 @@ O estado do executor aparece no dashboard. Se perder a conexão, ele deixa de ap
 Em Configurações, use Testar notificação. Permita notificações para Local Scheduler em Ajustes do Sistema; o modo Foco pode ocultar banners. Clique em uma notificação para abrir o dashboard. O executor depende da sessão iniciada, inclusive depois de um reinício com FileVault.
 
 A ponte Electron usa `window.localScheduler`, sem colidir com a API `window.scheduler` do Chromium.
+
+## Certificado automático do Amazon RDS
+
+Em Editar conexão, escolha Amazon RDS (automático) no campo Certificado do banco e salve. A primeira configuração baixa o bundle público diretamente de https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem. O aplicativo valida o formato e os certificados antes de salvar em sua pasta de dados, na subpasta certificates. Nenhuma credencial do banco é enviada nesse download.
+
+As conexões reutilizam o cache e tentam atualizar depois de 30 dias. Se a atualização falhar, um cache ainda válido permanece disponível. Sem um cache válido, o erro pede para verificar a internet e salvar novamente. A conexão continua validando a cadeia TLS e o hostname real do banco. A opção padrão ou arquivo CA continua disponível para outros bancos.

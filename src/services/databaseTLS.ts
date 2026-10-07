@@ -1,10 +1,17 @@
 import { readFile } from "node:fs/promises";
 import { X509Certificate } from "node:crypto";
 import type { ConnectionOptions } from "node:tls";
+import { dirname } from "node:path";
+import { ensureRdsCA } from "./rdsCA.ts";
 export async function databaseTLS(
   value: Record<string, unknown>,
 ): Promise<false | ConnectionOptions> {
   if (value.tls === "disable") return false;
+  if (value.caMode === "aws_rds") {
+    if (!value.caPath)
+      throw new Error("Salve a conexão para baixar a CA do Amazon RDS.");
+    await ensureRdsCA(dirname(String(value.caPath)));
+  }
   let ca: string | undefined;
   if (value.caPath) {
     try {

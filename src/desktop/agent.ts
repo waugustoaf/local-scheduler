@@ -15,6 +15,7 @@ import { ProcessRunner, scopedProfiles } from "./runner.ts";
 import { MacPower } from "./power.ts";
 import { serve } from "./rpc.ts";
 import { redact } from "../core/redact.ts";
+import { ensureRdsCA } from "../services/rdsCA.ts";
 import type { ModuleContext, TaskInput, Memory } from "../core/types.ts";
 
 export async function startAgent(dir: string, dist: string) {
@@ -176,6 +177,12 @@ export async function startAgent(dir: string, dist: string) {
         const input = object(args),
           p = validateProfile(input),
           old = store.listProfiles().find((v) => v.id === p.id);
+        if (
+          p.kind === "database" &&
+          p.value.caMode === "aws_rds" &&
+          p.value.tls !== "disable"
+        )
+          p.value.caPath = await ensureRdsCA(join(dir, "certificates"));
         for (const key of ["password", "passphrase"]) {
           const value = input[key];
           if (typeof value === "string" && value) {
