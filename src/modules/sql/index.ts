@@ -1,6 +1,7 @@
 import pg from "pg";
 import { createServer, type Server } from "node:net";
 import { databaseTLS, connectionError } from "../../services/databaseTLS.ts";
+import { forwardDatabaseSocket } from "../../services/tunnel.ts";
 import type { Client as SSH } from "ssh2";
 import type { ModuleContext, TaskModule } from "../../core/types.ts";
 import { object, text } from "../../core/validation.ts";
@@ -29,7 +30,10 @@ export async function openDatabase(databaseId: string, context: ModuleContext) {
   let port = Number(v.port ?? 5432),
     host = String(v.host);
   const sockets = new Set<import("node:net").Socket>();
+  let tunnelError: Error | undefined;
+  let closing = false;
   const cleanup = () => {
+    closing = true;
     for (const socket of sockets) socket.destroy();
     tunnel?.close();
     ssh?.end();
@@ -42,23 +46,29 @@ export async function openDatabase(databaseId: string, context: ModuleContext) {
           context,
         )
       ).client;
+      const failTunnel = (error: Error) => {
+        if (closing) return;
+        tunnelError ??= error;
+        for (const socket of sockets) socket.destroy();
+      };
+      ssh.on("error", (error) =>
+        failTunnel(new Error(`Conexão SSH: ${error.message}`)),
+      );
+      ssh.once("close", () =>
+        failTunnel(
+          new Error("A conexão SSH foi encerrada durante a conexão ao banco."),
+        ),
+      );
       tunnel = createServer((socket) => {
         sockets.add(socket);
         socket.once("close", () => sockets.delete(socket));
         socket.on("error", () => {});
-        ssh!.forwardOut(
-          "127.0.0.1",
-          socket.remotePort ?? 0,
+        forwardDatabaseSocket(
+          ssh!,
+          socket,
           String(v.host),
           remotePort,
-          (error, stream) => {
-            if (error) {
-              socket.destroy();
-              return;
-            }
-            stream.on("error", () => socket.destroy());
-            socket.pipe(stream).pipe(socket);
-          },
+          failTunnel,
         );
       });
       await new Promise<void>((resolve, reject) => {
@@ -93,7 +103,7 @@ export async function openDatabase(databaseId: string, context: ModuleContext) {
     } catch (error) {
       context.signal.removeEventListener("abort", abort);
       await client.end().catch(() => {});
-      throw connectionError(error);
+      throw connectionError(tunnelError ?? error);
     }
     return {
       client,

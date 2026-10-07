@@ -27,6 +27,8 @@ export function validateProfile(input: unknown): Profile {
     text(value.host, "Host", 255);
     text(value.database, "Banco", 255);
     text(value.username, "Usuário", 255);
+    if (value.tlsServerName)
+      text(value.tlsServerName, "Nome no certificado TLS", 255);
     integer(value.port ?? 5432, "Porta", 1, 65535);
     if (!["verify", "disable"].includes(String(value.tls ?? "verify")))
       throw new Error("Configuração TLS inválida.");
@@ -52,6 +54,7 @@ export function validateProfile(input: unknown): Profile {
           "database",
           "username",
           "tls",
+          "tlsServerName",
           "caPath",
           "caMode",
           "sshProfileId",

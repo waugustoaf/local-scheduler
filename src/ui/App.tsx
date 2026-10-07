@@ -1467,6 +1467,16 @@ function ProfileModal({
                 </select>
               </Field>
               <Field
+                label="Nome no certificado TLS (opcional)"
+                help="Se o host for um alias, informe o nome DNS esperado no certificado do banco. Em branco, usa o host."
+              >
+                <input
+                  value={v.tlsServerName ?? ""}
+                  onChange={(e) => patch({ tlsServerName: e.target.value })}
+                  placeholder="database.region.rds.amazonaws.com"
+                />
+              </Field>
+              <Field
                 label="Certificado do banco"
                 help="Amazon RDS baixa a CA oficial automaticamente ao salvar e a mantém no cache do aplicativo."
               >
@@ -1490,8 +1500,8 @@ function ProfileModal({
                 <p className="note">
                   A CA será baixada diretamente da AWS ao salvar. Nas próximas
                   conexões o aplicativo usa o arquivo salvo e tenta atualizar
-                  após 30 dias. Mantenha a validação TLS ativada e use o
-                  hostname real do banco.
+                  após 30 dias. Mantenha a validação TLS ativada e use o nome
+                  esperado no certificado quando o host for um alias.
                 </p>
               ) : (
                 <FileField

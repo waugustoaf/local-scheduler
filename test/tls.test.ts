@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rootCertificates } from "node:tls";
 import { databaseTLS, connectionError } from "../src/services/databaseTLS.ts";
+import { validateProfile } from "../src/services/profiles.ts";
 test("TLS keeps certificate verification and the real database hostname when a CA is supplied", async () => {
   const dir = mkdtempSync(join(tmpdir(), "scheduler_tls_"));
   try {
@@ -39,4 +40,43 @@ test("certificate chain errors give an actionable message without disabling TLS"
   assert.match(error.message, /certificado/);
   const other = new Error("password authentication failed");
   assert.equal(connectionError(other), other);
+});
+test("a network alias can validate the certificate against an explicit TLS identity", async () => {
+  const value = {
+    host: "alias.example.com",
+    tls: "verify",
+    tlsServerName: "database.rds.amazonaws.com",
+  };
+  const config = await databaseTLS(value);
+  if (config === false) throw Error("TLS disabled");
+  assert.equal(value.host, "alias.example.com");
+  assert.equal(config.servername, "database.rds.amazonaws.com");
+  assert.equal(config.rejectUnauthorized, true);
+  const certificate = {
+    subjectaltname: "DNS:database.rds.amazonaws.com",
+  } as any;
+  assert.equal(
+    config.checkServerIdentity!("alias.example.com", certificate),
+    undefined,
+  );
+  assert.ok(
+    config.checkServerIdentity!("alias.example.com", {
+      subjectaltname: "DNS:other.example.com",
+    } as any) instanceof Error,
+  );
+});
+test("database profiles preserve the expected TLS identity when saved", () => {
+  const profile = validateProfile({
+    name: "Production",
+    kind: "database",
+    value: {
+      driver: "postgres",
+      host: "alias.example.com",
+      database: "subscriptions",
+      username: "subscriptions",
+      tlsServerName: "database.rds.amazonaws.com",
+    },
+  });
+  assert.equal(profile.value.host, "alias.example.com");
+  assert.equal(profile.value.tlsServerName, "database.rds.amazonaws.com");
 });

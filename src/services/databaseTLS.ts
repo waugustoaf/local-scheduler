@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { X509Certificate } from "node:crypto";
-import type { ConnectionOptions } from "node:tls";
+import { checkServerIdentity, type ConnectionOptions } from "node:tls";
 import { dirname } from "node:path";
 import { ensureRdsCA } from "./rdsCA.ts";
 export async function databaseTLS(
@@ -27,7 +27,14 @@ export async function databaseTLS(
       );
     }
   }
-  return { rejectUnauthorized: true, servername: String(value.host), ca };
+  const identity = String(value.tlsServerName || value.host).trim();
+  return {
+    rejectUnauthorized: true,
+    servername: identity,
+    checkServerIdentity: (_hostname, certificate) =>
+      checkServerIdentity(identity, certificate),
+    ca,
+  };
 }
 export function connectionError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
