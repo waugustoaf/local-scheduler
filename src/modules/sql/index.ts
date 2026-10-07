@@ -1,6 +1,6 @@
 import pg from "pg";
 import { createServer, type Server } from "node:net";
-import { readFile } from "node:fs/promises";
+import { databaseTLS, connectionError } from "../../services/databaseTLS.ts";
 import type { Client as SSH } from "ssh2";
 import type { ModuleContext, TaskModule } from "../../core/types.ts";
 import { object, text } from "../../core/validation.ts";
@@ -71,7 +71,7 @@ export async function openDatabase(databaseId: string, context: ModuleContext) {
       host = "127.0.0.1";
       port = address.port;
     }
-    const ca = v.caPath ? await readFile(String(v.caPath), "utf8") : undefined;
+    const ssl = await databaseTLS(v);
     const client = new pg.Client({
       host,
       port,
@@ -79,10 +79,7 @@ export async function openDatabase(databaseId: string, context: ModuleContext) {
       user: String(v.username),
       password: credential(context, v.passwordRef),
       connectionTimeoutMillis: 15000,
-      ssl:
-        v.tls === "disable"
-          ? false
-          : { rejectUnauthorized: true, servername: String(v.host), ca },
+      ssl,
     });
     client.on("error", () => {});
     const abort = () => {
@@ -96,7 +93,7 @@ export async function openDatabase(databaseId: string, context: ModuleContext) {
     } catch (error) {
       context.signal.removeEventListener("abort", abort);
       await client.end().catch(() => {});
-      throw error;
+      throw connectionError(error);
     }
     return {
       client,

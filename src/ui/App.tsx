@@ -1410,6 +1410,21 @@ function ProfileModal({
             </>
           ) : (
             <>
+              <Field
+                label="Tipo de banco"
+                help="Esta versão executa SQL em PostgreSQL. MySQL ainda não está disponível."
+              >
+                <select
+                  required
+                  value={v.driver ?? "postgres"}
+                  onChange={(e) => patch({ driver: e.target.value })}
+                >
+                  <option value="postgres">PostgreSQL</option>
+                  <option value="mysql" disabled>
+                    MySQL (ainda não disponível)
+                  </option>
+                </select>
+              </Field>
               <Field label="Banco">
                 <input
                   required
@@ -1452,12 +1467,17 @@ function ProfileModal({
                 </select>
               </Field>
               <FileField
-                label="Certificado CA (opcional)"
+                label="Certificado CA do banco (quando exigido)"
                 kind="ca"
                 value={v.caPath ?? ""}
                 onChange={(s) => patch({ caPath: s })}
                 error={error}
               />
+              <p className="note">
+                Para Amazon RDS, selecione o global-bundle.pem oficial da AWS.
+                Esse certificado é diferente da chave privada .pem do SSH. Use o
+                hostname real do banco no campo Host, mesmo com túnel SSH.
+              </p>
             </>
           )}
         </div>

@@ -46,7 +46,19 @@ function bridge() {
 export const preview = !bridge() && !navigator.userAgent.includes("Electron/");
 export async function call(method: string, args: any = {}): Promise<any> {
   const api = bridge();
-  if (api) return api.call(method, args);
+  if (api) {
+    try {
+      return await api.call(method, args);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        message.replace(
+          /^Error invoking remote method '[^']+': (?:Error: )?/,
+          "",
+        ),
+      );
+    }
+  }
   if (!preview)
     throw new Error(
       "A ponte do Electron não carregou. Recompile e reabra o aplicativo.",
